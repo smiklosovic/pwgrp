@@ -1,0 +1,204 @@
+.Dd October 17, 2009
+.Dt PWGRP 8
+.Os
+.Sh NAME
+.Nm pwgrp
+.Nd group adding and modifying of users
+.Sh SYNOPSIS
+.Nm
+.Op Fl a Ar file
+.Op Fl C Ar config
+.Op Fl p
+.Op Fl A Ar flags
+.Op Fl Q
+.Op Fl f Ar fs
+.Op Fl c Ar comment
+.Op Fl b Ar val
+.Op Fl B Ar val
+.Op Fl i Ar val
+.Op Fl I Ar val
+.Nm
+.Op Fl q Ar file
+.Op Fl f Ar fs
+.Op Fl b Ar val
+.Op Fl B Ar val
+.Op Fl i Ar val
+.Op Fl I Ar val
+.Nm
+.Op Fl m Ar file
+.Op Fl t Ar file
+.Op Fl s Ar server
+.Op Fl S Ar subject
+.Nm
+.Op Fl r Ar file
+.Nm
+.Op Fl l Ar file
+.Nm
+.Op Fl L Ar file
+.Sh DESCRIPTION
+The
+.Nm
+utility is used for group adding of users, which list
+is located in 
+.Ar file .
+.Ar file 
+consists of lines of following syntax:
+.Pp
+<user_name>:<gecos>:<e-mail>
+.Pp
+Field <user_name> stands for name of created user. Field
+<gecos> stands for gecos information of user, <e-mail> stands
+for e-mail address to which information about curently made
+user account are sent. Syntax of lines of
+.Ar file
+is tested.
+.Pp
+The following options are available:
+.Pp
+.Bl -tag -width "-G grouplist"
+.It Fl a Ar file
+This flag sets 
+.Nm
+to mode for adding users which list is located in 
+.Ar file .
+.It Fl q Ar file
+This flag sets
+.Nm
+to mode in which quotas for users which list is located in
+.Ar file
+are modified.
+.It Fl m Ar file
+This flag sets
+.Nm
+to mode in which e-mail notifications about their newly created 
+accounts are sent. List of users with passwords and e-mail addresses has 
+same format as file for creating new users only gecos field is now used 
+as field for password. If e-mail field is empty, e-mail to that user is 
+not sent.
+.It Fl r Ar file
+This flag sets
+.Nm
+to mode in which users which list is located in
+.Ar file 
+are removed.
+.It Fl l Ar file
+This flag locks users' accounts, accounts are specified in
+.Ar file .
+.It Fl L Ar file
+This flag unlocks users' accounts, accounts are specified in
+.Ar file .
+.It Fl C Ar config
+By default,
+.Nm
+reads the file /usr/local/etc/pwgrp.conf to obtain policy 
+information on how new user accounts are going to be created. 
+The
+.Fl C
+option specifies a different configuration file. 
+This configuration file has same syntax and policy as configuration
+file for pw command.
+.It Fl p
+By default,
+.Nm
+do not generate passwords for users in
+.Ar file .
+By this flag,
+.Nm
+will generate passwords for users by
+.Xr apg 1 .
+.It Fl A Ar flags
+If
+.Fl p
+option is presented,
+.Xr apg 1
+will generate passwords for users in format of
+.Ar flags .
+By default,
+.Xr apg 1
+creates six-characters long password, which
+consists of upper and lower case(s) and number(s).
+.It Fl Q
+Determines, whether quotas for created users will
+be set, if
+.Fl a
+is triggered. If
+.Fl q
+is present,
+.Fl Q
+is set automatically. It is necessary to make sure that quotas are 
+configured in your kernel and your system is ready to set quotas.
+.It Fl f Ar fs
+Specifies the 
+.Ar fs
+filesystem to set quota information for. 
+If
+.Ar fs
+does not have quotas enabled an error will result.
+.It Fl c Ar comment
+If gecos, which stands for general information about the user, is not present in
+.Ar file ,
+.Ar comment
+is used.
+.It Fl t Ar file
+This flag sets template file for mail which will be sent to users. 
+Template file is ordinary text file where text can be mixed with special 
+srings which are substitued by appropriate values. Strings are as 
+follows: ${SERVER} - this string stands for ip address or hostname of 
+server on which accounts are created. ${MAIL} - this stands for e-mail 
+of user to whom this mail will be sent. ${USERNAME} - this stands for 
+username of user. ${PASSWORD} - this stands for user password of 
+account. Please see
+. Ar /usr/local/share/pwgrp/templates/
+for examples of template files.
+.It Fl s Ar server
+This flag fills variable ${SERVER} with 
+. Ar server .
+.It Fl S Ar subject
+This flag stands for e-mail subject. This email is going to be 
+sent to users.
+.It Fl I Ar val
+Inode hard quota.
+.It Fl i Ar val
+Inode soft quota.
+.It Fl B Ar val
+Block hard quota.
+.It Fl b Ar val
+Block soft quota.
+.El
+.Pp
+Block sizes are in the form of valX where X is {K,k} for kilobytes or {M,m} for megabytes.
+The default unit is kilobytes.
+.Pp
+Inode sizes have no modifiers.
+.Sh RETURN VALUES
+.Ex -std
+.Pp
+The following exit values have been defined:
+.Bl -tag -width "x" -offset indent
+.It Er 1
+.Ar config
+or
+.Ar file
+related error.
+.It Er 2
+An error has appeared during parsing of command line, which means
+there is an unsupported option or another similar error.
+.It Er 3
+User which executes program is not root.
+.El
+.Sh FILES
+.Bl -tag -width /usr/local/etc/pwgrp.conf -compact
+.It Pa /usr/local/etc/pwgrp.conf
+The configuration file for the creation of users. Uses the same policy as /etc/pw.conf
+.El
+.Sh SEE ALSO
+.Xr pw 8 ,
+.Xr pw.conf 5 ,
+.Xr quota 1 ,
+.Xr setquota 1 ,
+.Xr apg 1
+.Sh AUTHORS
+The
+.Nm
+utility and this manual page were written by
+.An Stefan Miklosovic Aq miklosovic@gmail.com .

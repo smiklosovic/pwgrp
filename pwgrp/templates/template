@@ -1,0 +1,8 @@
+Ahoj, ${EMAIL}
+
+Prave ti bol vytvoreny uzivatelsky ucet na serveri ${SERVER}.
+
+Tvoje prihlasovacie udaje:
+login name:  ${USERNAME}
+  password:  ${PASSWORD}
+=======================================

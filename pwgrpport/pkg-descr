@@ -1,0 +1,6 @@
+Pwgrp is a shell script, the purpose of which is create
+system users en mass. Pwgrp has simmilar syntax like pw,
+list of users to be created is a regular file with specified
+format. This script is dependent on apg and setquota ports.
+Agp creates passwords for users, setquota creates disk quotas.
+These features are optional.

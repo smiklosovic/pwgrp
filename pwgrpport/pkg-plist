@@ -1,0 +1,6 @@
+sbin/pwgrp
+share/pwgrp/LICENCE
+share/pwgrp/common.subr
+share/pwgrp/templates/template
+@dirrm share/pwgrp/templates
+@dirrm share/pwgrp

@@ -1,0 +1,249 @@
+#!/bin/sh
+
+# checks, if there is apg command installed
+# and if it is, it checks syntax of arguments
+# and options for apg command from $APG_FLAGS
+check_password_generator()
+{
+    which apg > /dev/null 2>&1
+    if [ "$?" -eq "0" ]; then
+        apg $APG_FLAGS > /dev/null 2>&1
+        if [ ! "$?" -eq "0" ]; then
+            echo "$PROGRAM_NAME: error: bad syntax of flags for apg" 2>&1
+            return 1
+        fi
+    else
+        echo "$PROGRAM_NAME: error: apg is not installed" 2>&1
+        return 1
+    fi
+    return 0
+}
+
+# checks quotas support in system
+check_quotas()
+{
+    which setquota > /dev/null 2>&1
+        if [ "$?" -ne "0" ]; then
+        if [ "$1"="remove" -o "$1"="add" -o "$1"="quota" ]; then
+    		echo "$PROGRAM_NAME: error: setquota is not installed" 2>&1
+            exit 2
+        else
+	    fi
+	fi
+    if is_quota_capable; then QUOTA_CAPABLE=YES; else QUOTA_CAPABLE=NO; fi
+    if is_quota_user_capable; then QUOTA_USER_CAPABLE=YES; else QUOTA_USER_CAPABLE=NO; fi
+# if QUOTAS="NO", quota support will not be available
+# if QUOTAS="YES", other variables are tested
+    if [ -z "$QUOTAS" ]; then QUOTAS="NO"; fi
+    if [ "$QUOTAS" = "YES" ]; then
+		if [ "$QUOTA_CAPABLE" = "YES" ]; then
+			if [ "$QUOTA_USER_CAPABLE" = "YES" ]; then
+				QUOTAS="YES"
+			else
+				QUOTAS="NO"
+			fi
+		else
+			QUOTAS="NO"
+		fi
+	else
+		QUOTAS="NO"
+	fi
+}
+
+# checks, if system is available to set quotas
+is_quota_capable()
+{
+    if [ `/etc/rc.d/quota rcvar | tail -n 1 | cut -d = -f2` = YES ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# checks, if system is available to set quotas to users
+is_quota_user_capable()
+{
+    if [ "`grep $FILE_SYSTEM /etc/fstab | grep -c userquota`" = "1" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# checks, if a file is valid and if it is readable
+is_valid()
+{
+    if [ -f $1 ]; then
+        if [ -r $1 ]; then
+            return 0
+        else
+            echo "$PROGRAM_NAME: error: file $1 is not readable" 2>&1
+            return 1
+        fi
+    else
+        echo "$PROGRAM_NAME: error: file $1 does not exist or is not a regular file" 2>&1
+        return 1
+    fi
+}
+
+# checks, if string represents a size for setquota command
+check_size_block()
+{
+    expr $1 : '^[0-9]*[MmKk]\{0,1\}$' > /dev/null 2>&1
+    return "$?"
+}
+
+# checks, if string represents a size for setquota command
+check_inode()
+{
+    expr $1 : '^[0-9]*$' > /dev/null 2>&1
+    return $?
+}
+
+check_syntax()
+{
+#	if [ "`echo "$1" | grep -c "^[^-][a-zA-Z0-9]\{1,\}* *:.*:[^@][a-zA-Z0-9_%-]\{1,\}@[a-zA-Z0-9.-]\{1,\}\.[a-zA-Z]\{2,4\}"`" = 1 ]; then
+	if [ "`echo "$1" | grep -c "^[^-][a-zA-Z0-9_-]\{1,\}* *:.*:"`" = 1 ]; then
+		return 0
+	else
+		return 1
+    fi
+}
+
+# function for adding users
+add_users()
+{
+    if [ "$GENERATE_PASSWORD" = "YES" ]; then
+        if ! check_password_generator "$APG_FLAGS"; then
+            exit 1
+        fi
+    fi
+
+    if [ ! "$OUTPUT" = "/dev/stdout" ]; then
+        if [ ! -e "$OUTPUT" ]; then
+            touch "$OUTPUT" > /dev/null 2>&1
+            if [ "$?" -ne "0" ]; then
+                echo "error: it is not possible to create file $OUTPUT" > /dev/stderr
+                exit 1
+	    fi
+        fi
+    fi
+
+    cut -d "#" -f1 $1 | while read line
+    do
+        if ! check_syntax "$line"; then
+            continue
+        fi
+        NAME="`echo "$line" |  cut -d : -f1`"
+        if [ -z "$USER_COMMENT" ]; then
+            COMMENT="`echo $line | cut -d : -f2`"
+        else
+            COMMENT="$USER_COMMENT"
+        fi
+        EMAIL="`echo $line | cut -d : -f3`"
+
+        if [ "$GENERATE_PASSWORD" = "YES" ]; then
+            pw usershow $NAME > /dev/null 2>&1
+            if [ ! "$?" -eq 0 ]; then
+                PASSWORD="`apg $APG_FLAGS -n 1`"
+                echo "$PASSWORD" | pw useradd $NAME -C $SYSTEM_CONFIG -m -c "$COMMENT" -h 0 > /dev/null 2>&1
+                if [ "$?" -eq 0 ]; then
+                    echo $NAME:$PASSWORD:$EMAIL >> "$OUTPUT"
+                    set_quotas_user $NAME
+                fi
+            fi
+        else
+            pw usershow $NAME > /dev/null 2>&1
+            if [ ! "$?" -eq 0 ]; then
+                pw useradd $NAME -C $SYSTEM_CONFIG -m -c "$COMMENT" -w no > /dev/null 2>&1
+                if [ "$?" -eq 0 ]; then
+                    set_quotas_user $NAME
+                fi
+            fi
+        fi
+    done
+    if [ ! "$OUTPUT" = "/dev/stdout" ]; then
+        chmod 400 "$OUTPUT"; chown root:wheel "$OUTPUT";
+    fi
+}
+
+# set quotas for user $NAME
+set_quotas_user()
+{
+    if [ "$QUOTAS" = "YES" ]; then
+        echo "tu1"
+        setquota -u -f $FILE_SYSTEM -bh$QUOTA_BLOCK_HARD -bs$QUOTA_BLOCK_SOFT \
+        -ih$QUOTA_INODE_HARD -is$QUOTA_INODE_SOFT $1
+    fi
+}
+
+# set quotas for users in file
+set_quotas_file()
+{
+	if [ "$QUOTAS" = "YES" ]; then
+        awk '{print $1}' $1 | cut -d : -f1 | grep "^[^#]" | while read LINE
+        do
+			setquota -u -f $FILE_SYSTEM -bh$QUOTA_BLOCK_HARD -bs$QUOTA_BLOCK_SOFT \
+			-ih$QUOTA_INODE_HARD -is$QUOTA_INODE_SOFT $LINE > /dev/null 2>&1
+			if [ "$?" = "1" ]; then echo "$PROGRAM_NAME: error: $LINE is not a valid user" 2>&1; fi
+        done
+	fi
+}
+
+# remove users from file
+remove_users()
+{
+    awk '{print $1}' $1 | cut -d : -f1 | grep "^[^#]" | while read LINE
+    do
+        pw userdel $LINE -r  > /dev/null 2>&1
+    done
+}
+
+# lock users from file
+lock_users()
+{
+    awk '{print $1}' $1 | cut -d : -f1 | grep "^[^#-]" | while read LINE
+    do
+        id -u $LINE > /dev/null 2>&1
+        if [ "$?" = "0" ]; then
+            pw lock `id -u $LINE`
+        fi
+    done
+}
+
+# unlock users from file
+unlock_users()
+{
+    awk '{print $1}' $1 | cut -d : -f1 | grep "^[^#-]" | while read LINE
+    do
+        id -u $LINE > /dev/null 2>&1
+        if [ "$?" = "0" ]; then
+            pw unlock `id -u $LINE`
+        fi
+    done
+}
+
+send_mail()
+{
+    FILE=$1
+    TEMPLATE=$2
+    SERVER=$3
+    SUBJECT=$4
+    TMPFILE="/tmp/sed.script."`jot -r -c 20 a z | rs -g 0 20`
+    touch $TMPFILE; chmod 600 $TMPFILE
+
+    awk '{print $1}' $1 | while read LINE
+    do
+        USERNAME=`echo "$LINE" | cut -d : -f1`
+        PASSWORD=`echo "$LINE" | cut -d : -f2`
+        EMAIL=`echo "$LINE" | cut -d : -f3`
+        for var in SERVER USERNAME PASSWORD EMAIL
+        do
+	        echo 's%${'"$var"'}%'$(eval echo "\$$var")'%g'
+        done > $TMPFILE
+        if [ ! -z $EMAIL ]; then
+            cat "$TEMPLATE" | sed -f "$TMPFILE" | mail -s "$SUBJECT" "$EMAIL"
+        fi
+    done
+    rm $TMPFILE
+}
